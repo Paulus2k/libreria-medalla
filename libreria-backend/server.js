@@ -5,12 +5,7 @@ const cors    = require("cors");
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://imaginative-determination-production-0818.up.railway.app'
-  ]
-}))
+app.use(cors())
 app.use(express.json());
 
 // ── Rutas ──

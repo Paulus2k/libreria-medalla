@@ -1,15 +1,30 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { Plus, Search, Edit2, Trash2, Package, X, Tag } from 'lucide-react'
 import { productosAPI, categoriasAPI } from '../services/api'
 import { useToast } from '../context/ToastContext'
 
 const VACIO = {
   nombre: '', descripcion: '', precio: '', stock: '',
-  stock_minimo: '5', categoria: '', codigo: '',
+  stock_minimo: '5', categoria: '', codigo: '', imagen_url: '',
 }
 
 function fmt(n) {
   return Number(n || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })
+}
+
+function imagenHTTPS(value) {
+  try {
+    const url = new URL(value.trim())
+    return url.protocol === 'https:' && !url.username && !url.password ? url.href : null
+  } catch { return null }
+}
+
+function VistaPreviaImagen({ src }) {
+  const [error, setError] = useState(false)
+  if (error) return <p role="status" style={{ fontSize: '0.8rem', marginTop: 10 }}>No se pudo cargar la imagen. Comprueba que el enlace sea público y apunte directamente a una imagen.</p>
+  return <img src={src} alt="Vista previa de la imagen del producto" referrerPolicy="no-referrer"
+    onError={() => setError(true)}
+    style={{ display: 'block', width: 120, height: 120, objectFit: 'contain', marginTop: 12, borderRadius: 8, border: '1px solid var(--cream-dark)' }} />
 }
 
 export default function Productos() {
@@ -23,6 +38,9 @@ export default function Productos() {
   const [editando, setEditando]         = useState(null)
   const [form, setForm]                 = useState(VACIO)
   const [guardando, setGuardando]       = useState(false)
+  const [archivoImagen, setArchivoImagen] = useState(null)
+  const [previewLocal, setPreviewLocal] = useState('')
+  const inputImagen = useRef(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [nuevaCat, setNuevaCat]         = useState('')
   const [guardandoCat, setGuardandoCat] = useState(false)
@@ -45,6 +63,32 @@ export default function Productos() {
 
   useEffect(() => { cargar() }, [])
 
+  useEffect(() => {
+    if (!archivoImagen) { setPreviewLocal(''); return }
+    const url = URL.createObjectURL(archivoImagen)
+    setPreviewLocal(url)
+    return () => URL.revokeObjectURL(url)
+  }, [archivoImagen])
+
+  const previewImagen = previewLocal || imagenHTTPS(form.imagen_url)
+
+  function seleccionarImagen(e) {
+    const archivo = e.target.files?.[0]
+    if (!archivo) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(archivo.type) || archivo.size > 5 * 1024 * 1024 || !archivo.size) {
+      addToast('Selecciona una imagen JPG, PNG o WebP de hasta 5 MB.', 'error')
+      e.target.value = ''
+      return
+    }
+    setArchivoImagen(archivo)
+  }
+
+  function quitarImagen() {
+    setArchivoImagen(null)
+    setForm(prev => ({ ...prev, imagen_url: '' }))
+    if (inputImagen.current) inputImagen.current.value = ''
+  }
+
   const filtrados = useMemo(() => {
     const q = busqueda.toLowerCase()
     if (!q) return productos
@@ -56,26 +100,30 @@ export default function Productos() {
   }, [productos, busqueda])
 
   function abrirNuevo() {
+    setArchivoImagen(null)
     setEditando(null)
     setForm({ ...VACIO, categoria: categorias[0]?.nombre || '' })
     setModalOpen(true)
   }
 
   function abrirEditar(p) {
+    setArchivoImagen(null)
     setEditando(p)
     setForm({
       nombre:       p.nombre || '',
       descripcion:  p.descripcion || '',
       precio:       p.precio || '',
-      stock:        p.stock || '',
+      stock:        p.stock ?? '',
       stock_minimo: p.stock_minimo ?? 5,
       categoria:    p.categoria || '',
       codigo:       p.codigo || '',
+      imagen_url:   p.imagen_url || '',
     })
     setModalOpen(true)
   }
 
   function cerrarModal() {
+    setArchivoImagen(null)
     setModalOpen(false)
     setEditando(null)
     setForm(VACIO)
@@ -87,17 +135,33 @@ export default function Productos() {
 
   async function handleGuardar(e) {
     e.preventDefault()
+    if (guardando) return
     if (!form.nombre || !form.precio || form.stock === '' || !form.categoria) {
       addToast('Nombre, precio, stock y categoría son obligatorios.', 'error')
       return
     }
+    let imagen = form.imagen_url.trim()
+    if (imagen && (imagen.length > 2048 || !imagenHTTPS(imagen))) {
+      addToast('La imagen debe ser un enlace HTTPS válido, sin usuario ni contraseña.', 'error')
+      return
+    }
     setGuardando(true)
     try {
+      if (archivoImagen) {
+        const respuesta = await productosAPI.subirImagen(archivoImagen)
+        imagen = respuesta?.data?.imagen_url
+        if (!imagen || !imagenHTTPS(imagen)) throw new Error('No se recibió la imagen subida.')
+        // Conservar la URL si falla el guardado: el reintento no vuelve a subir el archivo.
+        setForm(prev => ({ ...prev, imagen_url: imagen }))
+        setArchivoImagen(null)
+        if (inputImagen.current) inputImagen.current.value = ''
+      }
       const payload = {
         ...form,
         precio:       parseFloat(form.precio),
         stock:        parseInt(form.stock),
         stock_minimo: parseInt(form.stock_minimo) || 5,
+        imagen_url:   imagen ? imagenHTTPS(imagen) : null,
       }
       if (editando) {
         await productosAPI.update(editando.id, payload)
@@ -295,14 +359,14 @@ export default function Productos() {
 
       {/* Modal crear/editar producto */}
       {modalOpen && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && cerrarModal()}>
+        <div className="modal-overlay" onClick={e => !guardando && e.target === e.currentTarget && cerrarModal()}>
           <div className="modal">
             <div className="modal-header">
               <h3 className="modal-title">{editando ? 'Editar producto' : 'Nuevo producto'}</h3>
-              <button className="btn btn-ghost btn-icon" onClick={cerrarModal}><X size={18} /></button>
+              <button className="btn btn-ghost btn-icon" disabled={guardando} onClick={cerrarModal}><X size={18} /></button>
             </div>
             <form onSubmit={handleGuardar}>
-              <div className="modal-body">
+              <fieldset className="modal-body" disabled={guardando} style={{ border: 0, margin: 0, minWidth: 0 }}>
                 <div className="form-row form-row-2">
                   <div className="form-group">
                     <label className="form-label">Nombre *</label>
@@ -316,6 +380,17 @@ export default function Productos() {
                 <div className="form-group">
                   <label className="form-label">Descripción</label>
                   <input className="form-input" name="descripcion" value={form.descripcion} onChange={handleChange} placeholder="Descripción breve del producto" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="producto-imagen">Imagen del producto (opcional)</label>
+                  <input className="form-input" id="producto-imagen" ref={inputImagen} name="imagen" type="file"
+                    accept="image/jpeg,image/png,image/webp" onChange={seleccionarImagen}
+                    aria-describedby="producto-imagen-ayuda" />
+                  <span id="producto-imagen-ayuda" style={{ fontSize: '0.78rem', opacity: 0.7, marginTop: 6, display: 'block' }}>
+                    JPG, PNG o WebP, máximo 5 MB. La foto se subirá al guardar y se mostrará en el catálogo de clientes.
+                  </span>
+                  {previewImagen && <VistaPreviaImagen key={previewImagen} src={previewImagen} />}
+                  {(archivoImagen || form.imagen_url) && <button type="button" className="btn btn-ghost btn-sm" onClick={quitarImagen}>Quitar imagen</button>}
                 </div>
                 <div className="form-row form-row-2">
                   <div className="form-group">
@@ -366,9 +441,9 @@ export default function Productos() {
                     </span>
                   </div>
                 </div>
-              </div>
+              </fieldset>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={cerrarModal}>Cancelar</button>
+                <button type="button" className="btn btn-secondary" disabled={guardando} onClick={cerrarModal}>Cancelar</button>
                 <button type="submit" className="btn btn-primary" disabled={guardando}>
                   {guardando
                     ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Guardando…</>

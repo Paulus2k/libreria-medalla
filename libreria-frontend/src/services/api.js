@@ -7,7 +7,7 @@ function getToken() {
 async function request(path, options = {}) {
   const token = getToken()
   const headers = {
-    'Content-Type': 'application/json',
+    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   }
@@ -21,7 +21,7 @@ async function request(path, options = {}) {
     localStorage.removeItem('token')
     localStorage.removeItem('usuario')
     window.location.href = '/login'
-    return
+    throw new Error('Inicia sesión nuevamente.')
   }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error || data.message || `Error ${res.status}`)
@@ -34,6 +34,11 @@ export const authAPI = {
 }
 
 export const productosAPI = {
+  subirImagen: (archivo) => {
+    const body = new FormData()
+    body.append('imagen', archivo)
+    return request('/productos/imagen', { method: 'POST', body })
+  },
   getAll:  ()         => request('/productos'),
   create:  (data)     => request('/productos', { method: 'POST', body: JSON.stringify(data) }),
   update:  (id, data) => request(`/productos/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

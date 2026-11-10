@@ -4,7 +4,7 @@ import { productosAPI, categoriasAPI } from '../services/api'
 import { useToast } from '../context/ToastContext'
 
 const VACIO = {
-  nombre: '', descripcion: '', precio: '', stock: '',
+  nombre: '', descripcion: '', precio: '', costo: '0', stock: '',
   stock_minimo: '5', categoria: '', codigo: '', imagen_url: '',
 }
 
@@ -113,6 +113,7 @@ export default function Productos() {
       nombre:       p.nombre || '',
       descripcion:  p.descripcion || '',
       precio:       p.precio || '',
+      costo: p.costo ?? 0,
       stock:        p.stock ?? '',
       stock_minimo: p.stock_minimo ?? 5,
       categoria:    p.categoria || '',
@@ -159,6 +160,7 @@ export default function Productos() {
       const payload = {
         ...form,
         precio:       parseFloat(form.precio),
+        costo: Number(form.costo),
         stock:        parseInt(form.stock),
         stock_minimo: parseInt(form.stock_minimo) || 5,
         imagen_url:   imagen ? imagenHTTPS(imagen) : null,
@@ -383,18 +385,13 @@ export default function Productos() {
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="producto-imagen">Imagen del producto (opcional)</label>
-                  <input className="form-input" id="producto-imagen" ref={inputImagen} name="imagen" type="file"
-                    accept="image/jpeg,image/png,image/webp" onChange={seleccionarImagen}
-                    aria-describedby="producto-imagen-ayuda" />
-                  <span id="producto-imagen-ayuda" style={{ fontSize: '0.78rem', opacity: 0.7, marginTop: 6, display: 'block' }}>
-                    JPG, PNG o WebP, máximo 5 MB. La foto se subirá al guardar y se mostrará en el catálogo de clientes.
-                  </span>
-                  {previewImagen && <VistaPreviaImagen key={previewImagen} src={previewImagen} />}
+                  <input className="form-input" id="producto-imagen" name="imagen_url" type="url" value={form.imagen_url} onChange={handleChange} placeholder="https://ejemplo.com/producto.jpg" aria-describedby="producto-imagen-ayuda" />
+                  <span id="producto-imagen-ayuda" style={{fontSize:'.78rem',display:'block',marginTop:6}}>Enlace HTTPS público a la imagen del producto.</span>                  {previewImagen && <VistaPreviaImagen key={previewImagen} src={previewImagen} />}
                   {(archivoImagen || form.imagen_url) && <button type="button" className="btn btn-ghost btn-sm" onClick={quitarImagen}>Quitar imagen</button>}
                 </div>
                 <div className="form-row form-row-2">
                   <div className="form-group">
-                    <label className="form-label">Precio (Q) *</label>
+                    <label className="form-label">Costo de compra (Q)</label><input className="form-input" name="costo" type="number" min="0" step="0.01" value={form.costo} onChange={handleChange} required /><label className="form-label" style={{marginTop:12}}>Precio de venta (Q) *</label>
                     <input className="form-input" name="precio" type="number" step="0.01" min="0" value={form.precio} onChange={handleChange} placeholder="0.00" />
                   </div>
                  <div className="form-group">
@@ -544,3 +541,4 @@ export default function Productos() {
     </div>
   )
 }
+

@@ -4,7 +4,7 @@ const supabase  = require("../supabaseClient");
 const bcrypt    = require("bcryptjs");
 const jwt       = require("jsonwebtoken");
 
-const JWT_SECRET = process.env.JWT_SECRET || "secreto_libreria_2026";
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // POST /auth/login
 router.post("/login", async (req, res) => {
@@ -40,7 +40,8 @@ router.post("/login", async (req, res) => {
 });
 
 // POST /auth/registro (solo admin puede crear usuarios)
-router.post("/registro", async (req, res) => {
+router.post("/registro", require("../middleware/auth"), async (req, res) => {
+  if (req.usuario.rol !== "admin") return res.status(403).json({ message: "Solo el administrador puede crear usuarios." });
   const { nombre, email, password, rol } = req.body;
 
   if (!nombre || !email || !password)

@@ -4,9 +4,11 @@ import { LayoutDashboard, Package, ShoppingCart, Archive, LogOut, BookOpen, Truc
 import { useAuth } from '../context/useAuth'
 
 const links = [
-  { to: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/dashboard',   icon: LayoutDashboard, label: 'Resumen del negocio' },
   { to: '/productos',   icon: Package,          label: 'Productos' },
-  { to: '/ventas',      icon: ShoppingCart,     label: 'Ventas' },
+  { to: '/ventas',      icon: ShoppingCart,     label: 'Catálogo y caja' },
+  { to: '/facturas', icon: ShoppingBag, label: 'Comprobantes' },
+  { to: '/importar', icon: Package, label: 'Ingreso masivo' },
   { to: '/inventario',  icon: Archive,          label: 'Inventario' },
   { to: '/clientes',    icon: Users,            label: 'Clientes' },
   { to: '/proveedores', icon: Truck,            label: 'Proveedores' },

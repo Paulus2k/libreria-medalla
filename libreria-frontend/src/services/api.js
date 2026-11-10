@@ -86,3 +86,10 @@ export const clientesAPI = {
   update:  (id, data) => request(`/clientes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete:  (id)       => request(`/clientes/${id}`, { method: 'DELETE' }),
 }
+
+export const comercioAPI = {
+  facturas: () => request('/comercio/facturas'),
+  vender: data => request('/comercio/facturas', { method: 'POST', body: JSON.stringify(data) }),
+  anular: id => request(`/comercio/facturas/${id}/anular`, { method: 'PUT' }),
+  importar: data => request('/comercio/importar', { method: 'POST', body: JSON.stringify(data) }),
+}

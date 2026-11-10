@@ -16,7 +16,7 @@ function fmtFecha(iso) {
 
 export default function Ventas() {
   const { addToast } = useToast()
-  const [tab, setTab] = useState('nueva')
+  const [tab, setTab] = useState('historial')
 
   // Nueva venta
   const [productos, setProductos]     = useState([])
@@ -173,7 +173,7 @@ export default function Ventas() {
           <h2 className="page-title">Módulo de <span>Ventas</span></h2>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className={`btn ${tab === 'nueva' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('nueva')}>
+          <button className={`btn ${tab === 'nueva' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { window.location.href = '/ventas' }}>
             <Plus size={15} /> Nueva venta
           </button>
           <button className={`btn ${tab === 'historial' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('historial')}>
@@ -557,7 +557,7 @@ export default function Ventas() {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setVentaDetalle(null)}>Cerrar</button>
               {ventaDetalle.estado !== 'anulada' && (
-                <button className="btn btn-danger" onClick={() => handleAnular(ventaDetalle)} disabled={anulando === ventaDetalle.id}>
+                <button className="btn btn-danger" title="Las ventas anteriores se conservan solo para consulta" disabled={true}>
                   {anulando === ventaDetalle.id
                     ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Anulando…</>
                     : 'Anular venta'}
@@ -570,3 +570,4 @@ export default function Ventas() {
     </div>
   )
 }
+

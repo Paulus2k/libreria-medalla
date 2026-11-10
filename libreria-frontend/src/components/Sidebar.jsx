@@ -10,6 +10,7 @@ const links = [
   { to: '/facturas', icon: ShoppingBag, label: 'Comprobantes' },
   { to: '/importar', icon: Package, label: 'Ingreso masivo' },
   { to: '/inventario',  icon: Archive,          label: 'Inventario' },
+  { to: '/contabilidad', icon: Archive, label: 'Contabilidad GT' },
   { to: '/clientes',    icon: Users,            label: 'Clientes' },
   { to: '/proveedores', icon: Truck,            label: 'Proveedores' },
   { to: '/compras',     icon: ShoppingBag,      label: 'Lista de compras' },
@@ -71,3 +72,4 @@ export default function Sidebar() {
     </aside>
   )
 }
+

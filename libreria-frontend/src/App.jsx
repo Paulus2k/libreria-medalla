@@ -17,6 +17,7 @@ import Tienda from './pages/Tienda'
 import Importar from './pages/Importar'
 import Facturas from './pages/Facturas'
 import Negocio from './pages/Negocio'
+import Contabilidad from './pages/Contabilidad'
 
 export default function App() {
   return (
@@ -27,8 +28,8 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Negocio />} /><Route path="resumen-anterior" element={<Dashboard />} /><Route path="importar" element={<Importar />} /><Route path="facturas" element={<Facturas />} /><Route path="ventas-anteriores" element={<Ventas />} />
-              <Route path="productos" element={<Productos />} />
+              <Route path="dashboard" element={<Negocio />} /><Route path="resumen-anterior" element={<Navigate to="/dashboard" replace />} /><Route path="importar" element={<Importar />} /><Route path="facturas" element={<Facturas />} /><Route path="ventas-anteriores" element={<Ventas />} />
+              <Route path="contabilidad" element={<Contabilidad />} /><Route path="productos" element={<Productos />} />
               <Route path="ventas" element={<Tienda />} />
               <Route path="inventario" element={<Inventario />} />
               <Route path="proveedores" element={<Proveedores />} />
@@ -42,3 +43,4 @@ export default function App() {
     </AuthProvider>
   )
 }
+

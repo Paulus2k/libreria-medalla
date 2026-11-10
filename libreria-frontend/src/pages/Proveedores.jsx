@@ -3,8 +3,7 @@ import { Plus, Edit2, Trash2, X, Phone, Mail, MapPin, CreditCard, CheckCircle, C
 import { proveedoresAPI } from '../services/api'
 import { useToast } from '../context/ToastContext'
 
-const GOOGLE_CLIENT_ID = '295328208348-7f36s30hpi28v9j5hdspatih38rsbv4a.apps.googleusercontent.com'
-const SCOPES = 'https://www.googleapis.com/auth/calendar.events'
+import {sincronizarPago} from '../lib/calendar.mjs'
 
 function fmt(n) {
   return Number(n || 0).toLocaleString('es-GT', { minimumFractionDigits: 2 })
@@ -41,123 +40,16 @@ function labelDias(dias) {
 const VACIO_PROV = { nombre: '', correo: '', telefono: '', locacion: '' }
 const VACIO_PAGO = { monto: '', fecha_pago: '', notas: '' }
 
-// ── Google Calendar ──
-function loadGisScript() {
-  return new Promise((resolve) => {
-    if (window.google?.accounts) return resolve()
-    const script = document.createElement('script')
-    script.src = 'https://accounts.google.com/gsi/client'
-    script.onload = resolve
-    document.body.appendChild(script)
-  })
-}
-
-function loadGapiScript() {
-  return new Promise((resolve) => {
-    if (window.gapi) return resolve()
-    const script = document.createElement('script')
-    script.src = 'https://apis.google.com/js/api.js'
-    script.onload = resolve
-    document.body.appendChild(script)
-  })
-}
-
-async function agregarEventoCalendario({ proveedor, monto, fecha_pago, notas, hora, repetir, cadaHoras, horaFin }) {
-  await Promise.all([loadGisScript(), loadGapiScript()])
-  await new Promise((resolve, reject) => {
-    window.gapi.load('client', { callback: resolve, onerror: reject })
-  })
-  await window.gapi.client.init({
-    discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
-  })
-  const token = await new Promise((resolve, reject) => {
-    const tokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: SCOPES,
-      callback: (response) => {
-        if (response.error) reject(new Error(response.error))
-        else resolve(response.access_token)
-      },
-    })
-    tokenClient.requestAccessToken()
-  })
-  window.gapi.client.setToken({ access_token: token })
-
-  // Calcular minutos de anticipación para la notificación principal
-  const [h, m] = hora.split(':').map(Number)
-  const minutosDesdeMedianoche = h * 60 + m
-
-  // Construir overrides — siempre la hora principal
-  const overrides = [
-    { method: 'popup', minutes: 0 },
-    { method: 'email', minutes: 24 * 60 },
-  ]
-
-  // Si quiere repeticiones, agregar un popup por cada intervalo
-  if (repetir && cadaHoras > 0) {
-    const [hFin, mFin] = horaFin.split(':').map(Number)
-    const minFin = hFin * 60 + mFin
-    let cur = minutosDesdeMedianoche + cadaHoras * 60
-    while (cur <= minFin) {
-      // minutes en reminders es "antes del evento", pero como el evento es todo el día
-      // usamos un truco: creamos eventos separados por cada hora
-      cur += cadaHoras * 60
-    }
-  }
-
-  // Evento principal con la hora exacta
-  const startDateTime = `${fecha_pago}T${hora}:00`
-  const endDateTime   = `${fecha_pago}T${hora.split(':')[0].padStart(2,'0')}:${(parseInt(hora.split(':')[1]) + 30).toString().padStart(2,'0')}:00`
-
-  const evento = {
-    summary:     `💳 Pago a ${proveedor} — Q${fmt(monto)}`,
-    description: notas || `Pago pendiente al proveedor ${proveedor}`,
-    start: { dateTime: startDateTime, timeZone: 'America/Guatemala' },
-    end:   { dateTime: endDateTime,   timeZone: 'America/Guatemala' },
-    reminders: {
-      useDefault: false,
-      overrides: [
-        { method: 'popup', minutes: 0 },
-        { method: 'email', minutes: 60 },
-      ],
-    },
-  }
-
-  await window.gapi.client.calendar.events.insert({ calendarId: 'primary', resource: evento })
-
-  // Si quiere repeticiones, crear un evento por cada hora adicional
-  if (repetir && cadaHoras > 0) {
-    const [hFin, mFin] = horaFin.split(':').map(Number)
-    const minFin = hFin * 60 + mFin
-    let curMin = minutosDesdeMedianoche + cadaHoras * 60
-
-    while (curMin <= minFin) {
-      const hh = String(Math.floor(curMin / 60)).padStart(2, '0')
-      const mm = String(curMin % 60).padStart(2, '0')
-      const stDT = `${fecha_pago}T${hh}:${mm}:00`
-      const enDT = `${fecha_pago}T${hh}:${mm}:00`
-      await window.gapi.client.calendar.events.insert({
-        calendarId: 'primary',
-        resource: {
-          summary:     `💳 Recordatorio — Pago a ${proveedor}`,
-          description: `Recordatorio periódico cada ${cadaHoras}h`,
-          start: { dateTime: stDT, timeZone: 'America/Guatemala' },
-          end:   { dateTime: enDT, timeZone: 'America/Guatemala' },
-          reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] },
-        },
-      })
-      curMin += cadaHoras * 60
-    }
-  }
-}
-
 export default function Proveedores() {
   const { addToast } = useToast()
   const [proveedores, setProveedores]           = useState([])
+  const [verArchivados,setVerArchivados]=useState(false)
+  const [pagoPorLiquidar,setPagoPorLiquidar]=useState(null)
   const [todosPagos, setTodosPagos]             = useState([])
   const [loading, setLoading]                   = useState(true)
   const [tab, setTab]                           = useState('proveedores')
   const [modalProv, setModalProv]               = useState(false)
+  const [editandoPago,setEditandoPago]=useState(null)
   const [modalPago, setModalPago]               = useState(false)
   const [editandoProv, setEditandoProv]         = useState(null)
   const [provSeleccionado, setProvSeleccionado] = useState(null)
@@ -175,7 +67,7 @@ export default function Proveedores() {
   async function cargar() {
     setLoading(true)
     try {
-      const [p, pg] = await Promise.all([proveedoresAPI.getAll(), proveedoresAPI.getTodosPagos()])
+      const [p, pg] = await Promise.all([proveedoresAPI.getAll(verArchivados), proveedoresAPI.getTodosPagos()])
       setProveedores(Array.isArray(p) ? p : (p.data || []))
       setTodosPagos(Array.isArray(pg) ? pg : (pg.data || []))
     } catch (err) {
@@ -185,7 +77,7 @@ export default function Proveedores() {
     }
   }
 
-  useEffect(() => { cargar() }, [])
+  useEffect(() => { cargar() }, [verArchivados])
 
   const pagosAlerta = useMemo(() =>
     todosPagos.filter(p => p.estado === 'pendiente' && diasRestantes(p.fecha_pago) <= 7)
@@ -237,7 +129,7 @@ export default function Proveedores() {
   async function handleEliminarProv(id) {
     try {
       await proveedoresAPI.delete(id)
-      addToast('Proveedor eliminado', 'success')
+      addToast('Proveedor archivado', 'success')
       setConfirmDelete(null)
       cargar()
     } catch (err) {
@@ -246,6 +138,7 @@ export default function Proveedores() {
   }
 
   function abrirNuevoPago(proveedor) {
+    setEditandoPago(null)
     setProvSeleccionado(proveedor)
     setFormPago(VACIO_PAGO)
     setModalPago(true)
@@ -256,7 +149,8 @@ export default function Proveedores() {
     if (!formPago.monto || !formPago.fecha_pago) { addToast('Monto y fecha son obligatorios', 'error'); return }
     setGuardando(true)
     try {
-      await proveedoresAPI.createPago(provSeleccionado.id, formPago)
+      if(editandoPago) await proveedoresAPI.updatePago(editandoPago.id, editandoPago.estado==='pagado'?{notas:formPago.notas}:formPago)
+      else await proveedoresAPI.createPago(provSeleccionado.id, formPago)
       addToast('Pago registrado', 'success')
       setModalPago(false)
       cargar()
@@ -269,7 +163,8 @@ export default function Proveedores() {
 
   async function handleMarcarPagado(pagoId) {
     try {
-      await proveedoresAPI.marcarPagado(pagoId)
+      await proveedoresAPI.marcarPagado(pagoId,{cuenta:pagoPorLiquidar.cuenta,contrapartida:pagoPorLiquidar.contrapartida})
+      setPagoPorLiquidar(null)
       addToast('Pago marcado como pagado', 'success')
       cargar()
     } catch (err) {
@@ -290,7 +185,8 @@ export default function Proveedores() {
   async function handleAgregarCalendario(pago) {
     setAgregandoCal(pago.id)
     try {
-      await agregarEventoCalendario({
+      const eventos=await sincronizarPago({
+        id:pago.id,eventos:pago.calendario_eventos||[],
         proveedor:  pago.proveedores?.nombre || 'Proveedor',
         monto:      pago.monto,
         fecha_pago: pago.fecha_pago,
@@ -300,7 +196,10 @@ export default function Proveedores() {
         cadaHoras:  calCadaHoras,
         horaFin:    calHoraFin,
       })
-      addToast('✅ Evento agregado a Google Calendar', 'success')
+      await proveedoresAPI.updatePago(pago.id,{calendario_eventos:eventos})
+      addToast('Recordatorios actualizados en Google Calendar', 'success')
+      await cargar()
+      return true
     } catch (err) {
       console.error(err)
       addToast('Error al agregar al calendario: ' + (err.message || 'Intenta de nuevo'), 'error')
@@ -326,6 +225,7 @@ export default function Proveedores() {
         </div>
       </div>
 
+      <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:18}}><input type="checkbox" checked={verArchivados} onChange={e=>setVerArchivados(e.target.checked)}/> Mostrar proveedores archivados</label>
       {pagosAlerta.length > 0 && (
         <div style={{
           marginBottom: 20, padding: '14px 18px', background: 'var(--red-pale)',
@@ -372,7 +272,7 @@ export default function Proveedores() {
                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700 }}>{p.nombre}</h3>
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button className="btn btn-ghost btn-icon btn-sm" onClick={() => abrirEditarProv(p)}><Edit2 size={14} /></button>
-                          <button className="btn btn-danger btn-icon btn-sm" onClick={() => setConfirmDelete(p)}><Trash2 size={14} /></button>
+                          {p.activo===false?<button className="btn btn-secondary btn-sm" onClick={async()=>{try{await proveedoresAPI.restaurar(p.id);await cargar()}catch(e){addToast(e.message,'error')}}}>Restaurar</button>:<button className="btn btn-danger btn-icon btn-sm" title="Archivar proveedor" onClick={() => setConfirmDelete(p)}><Trash2 size={14} /></button>}
                         </div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
@@ -433,14 +333,14 @@ export default function Proveedores() {
                             <td style={{ fontSize: '0.82rem', opacity: 0.6 }}>{p.notas || '—'}</td>
                             <td>
                               <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                              <button
+                              <button className="btn btn-secondary btn-sm" onClick={()=>{setEditandoPago(p);setProvSeleccionado({id:p.proveedor_id,nombre:p.proveedores?.nombre});setFormPago({monto:p.monto,fecha_pago:p.fecha_pago,notas:p.notas||''});setModalPago(true)}}><Edit2 size={13}/>Editar</button><button
                                   className="btn btn-secondary btn-sm"
                                   onClick={() => { setModalCal(p); setCalHora('08:00'); setCalRepetir(false); setCalCadaHoras(3); setCalHoraFin('20:00') }}
                                   title="Agregar a Google Calendar"
                                 >
                                   <Calendar size={13} /> Calendario
                                 </button>
-                                <button className="btn btn-secondary btn-sm" onClick={() => handleMarcarPagado(p.id)}>
+                                <button className="btn btn-secondary btn-sm" onClick={() => setPagoPorLiquidar({...p,cuenta:'',contrapartida:''})}>
                                   <CheckCircle size={13} /> Pagado
                                 </button>
                                 <button className="btn btn-danger btn-icon btn-sm" onClick={() => handleEliminarPago(p.id)}>
@@ -484,9 +384,7 @@ export default function Proveedores() {
                           <td>{fmtFecha(p.fecha_pago)}</td>
                           <td style={{ fontSize: '0.82rem', opacity: 0.6 }}>{p.notas || '—'}</td>
                           <td>
-                            <button className="btn btn-danger btn-icon btn-sm" onClick={() => handleEliminarPago(p.id)}>
-                              <Trash2 size={13} />
-                            </button>
+                            <button className="btn btn-secondary btn-sm" onClick={()=>{setEditandoPago(p);setProvSeleccionado({id:p.proveedor_id,nombre:p.proveedores?.nombre});setFormPago({monto:p.monto,fecha_pago:p.fecha_pago,notas:p.notas||''});setModalPago(true)}}><Edit2 size={13}/>Editar</button>
                           </td>
                         </tr>
                       ))}
@@ -499,6 +397,8 @@ export default function Proveedores() {
         </div>
       )}
 
+      {confirmDelete&&<div className="modal-overlay"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="archivar-proveedor"><div className="modal-body"><h2 id="archivar-proveedor">Archivar proveedor</h2><p>¿Archivar a {confirmDelete.nombre}? Dejará de aparecer en proveedores activos; sus pagos realizados se conservarán. Si tiene pagos pendientes, primero debes resolverlos.</p></div><div className="modal-footer"><button autoFocus className="btn btn-secondary" onClick={()=>setConfirmDelete(null)}>Cancelar</button><button className="btn btn-danger" onClick={()=>handleEliminarProv(confirmDelete.id)}>Archivar proveedor</button></div></section></div>}
+      {pagoPorLiquidar&&<div className="modal-overlay"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="liquidar-pago"><form onSubmit={e=>{e.preventDefault();handleMarcarPagado(pagoPorLiquidar.id)}}><div className="modal-body"><h2 id="liquidar-pago">Registrar pago realizado</h2><p>Q {fmt(pagoPorLiquidar.monto)} a {pagoPorLiquidar.proveedores?.nombre}. Después de la apertura contable se genera el asiento automáticamente.</p><label>Cuenta de salida<select required className="form-select" value={pagoPorLiquidar.cuenta} onChange={e=>setPagoPorLiquidar({...pagoPorLiquidar,cuenta:e.target.value})}><option value="">Selecciona</option><option value="caja">Caja</option><option value="bancos">Bancos</option></select></label><label>Concepto contable<select required className="form-select" value={pagoPorLiquidar.contrapartida} onChange={e=>setPagoPorLiquidar({...pagoPorLiquidar,contrapartida:e.target.value})}><option value="">Selecciona</option><option value="proveedores">Pago de deuda ya registrada a proveedores</option><option value="gastos">Gasto que todavía no se ha registrado</option><option value="inventario">Compra de inventario que todavía no se ha registrado</option></select></label></div><div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={()=>setPagoPorLiquidar(null)}>Cancelar</button><button className="btn btn-primary">Confirmar pago</button></div></form></section></div>}
       {/* Modal proveedor */}
       {modalProv && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModalProv(false)}>
@@ -548,7 +448,7 @@ export default function Proveedores() {
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModalPago(false)}>
           <div className="modal" style={{ maxWidth: 420 }}>
             <div className="modal-header">
-              <h3 className="modal-title">Registrar pago — {provSeleccionado?.nombre}</h3>
+              <h3 className="modal-title">{editandoPago ? "Editar pago" : "Registrar pago"} — {provSeleccionado?.nombre}</h3>
               <button className="btn btn-ghost btn-icon" onClick={() => setModalPago(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleGuardarPago}>
@@ -556,12 +456,12 @@ export default function Proveedores() {
                 <div className="form-row form-row-2">
                   <div className="form-group">
                     <label className="form-label">Monto a pagar (Q) *</label>
-                    <input className="form-input" type="number" step="0.01" min="0" placeholder="0.00"
+                    <input className="form-input" disabled={editandoPago?.estado==='pagado'} type="number" step="0.01" min="0.01" placeholder="0.00"
                       value={formPago.monto} onChange={e => setFormPago(p => ({ ...p, monto: e.target.value }))} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Fecha de pago *</label>
-                    <input className="form-input" type="date" value={formPago.fecha_pago}
+                    <input className="form-input" type="date" disabled={editandoPago?.estado==='pagado'} value={formPago.fecha_pago}
                       onChange={e => setFormPago(p => ({ ...p, fecha_pago: e.target.value }))} />
                   </div>
                 </div>
@@ -574,7 +474,7 @@ export default function Proveedores() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setModalPago(false)}>Cancelar</button>
                 <button type="submit" className="btn btn-primary" disabled={guardando}>
-                  {guardando ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Guardando…</> : 'Registrar pago'}
+                  {guardando ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Guardando…</> : editandoPago ? 'Guardar cambios' : 'Registrar pago'}
                 </button>
               </div>
             </form>
@@ -621,7 +521,7 @@ export default function Proveedores() {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setModalCal(null)}>Cancelar</button>
               <button className="btn btn-primary" disabled={agregandoCal === modalCal.id}
-                onClick={async () => { await handleAgregarCalendario(modalCal); setModalCal(null) }}>
+                onClick={async () => { if(await handleAgregarCalendario(modalCal)) setModalCal(null) }}>
                 {agregandoCal === modalCal.id
                   ? <><span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Agregando…</>
                   : <><Calendar size={14} /> Agregar al calendario</>}
@@ -633,3 +533,4 @@ export default function Proveedores() {
     </div>
   )
 }
+

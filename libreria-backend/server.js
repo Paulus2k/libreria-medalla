@@ -13,6 +13,7 @@ app.use("/comercio", require("./routes/comercio"));
 // ── Rutas ──
 app.use("/auth",       require("./routes/auth"));
 app.use(require("./middleware/auth"));
+app.use('/contabilidad', require('./routes/contabilidad'));
 app.use("/productos",  require("./routes/productos"));
 app.use("/ventas",     require("./routes/ventas"));
 app.use("/inventario", require("./routes/inventario"));

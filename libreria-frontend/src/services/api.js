@@ -69,14 +69,16 @@ export const reportesAPI = {
 }
 
 export const proveedoresAPI = {
-  getAll:        ()           => request('/proveedores'),
+  restaurar:id=>request(`/proveedores/${id}/restaurar`,{method:'PUT'}),
+  updatePago:(id,data)=>request('/proveedores/pagos/'+id,{method:'PUT',body:JSON.stringify(data)}),
+  getAll:        (archivados=false) => request('/proveedores'+(archivados?'?archivados=1':'')),
   create:        (data)       => request('/proveedores', { method: 'POST', body: JSON.stringify(data) }),
   update:        (id, data)   => request(`/proveedores/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete:        (id)         => request(`/proveedores/${id}`, { method: 'DELETE' }),
   getPagos:      (id)         => request(`/proveedores/${id}/pagos`),
   getTodosPagos: ()           => request('/proveedores/pagos/todos'),
   createPago:    (id, data)   => request(`/proveedores/${id}/pagos`, { method: 'POST', body: JSON.stringify(data) }),
-  marcarPagado:  (pagoId)     => request(`/proveedores/pagos/${pagoId}/marcar-pagado`, { method: 'PUT' }),
+  marcarPagado:  (pagoId,data) => request(`/proveedores/pagos/${pagoId}/marcar-pagado`, { method: 'PUT',body:JSON.stringify(data) }),
   deletePago:    (pagoId)     => request(`/proveedores/pagos/${pagoId}`, { method: 'DELETE' }),
 }
 
@@ -88,8 +90,18 @@ export const clientesAPI = {
 }
 
 export const comercioAPI = {
+  historial:()=>request('/comercio/historial'),
   facturas: () => request('/comercio/facturas'),
   vender: data => request('/comercio/facturas', { method: 'POST', body: JSON.stringify(data) }),
   anular: id => request(`/comercio/facturas/${id}/anular`, { method: 'PUT' }),
   importar: data => request('/comercio/importar', { method: 'POST', body: JSON.stringify(data) }),
 }
+
+export const contabilidadAPI={
+ get:()=>request('/contabilidad'),
+ apertura:data=>request('/contabilidad/apertura',{method:'POST',body:JSON.stringify(data)}),
+ asiento:data=>request('/contabilidad/asientos',{method:'POST',body:JSON.stringify(data)}),
+ abonar:data=>request('/contabilidad/abonos',{method:'POST',body:JSON.stringify(data)}),
+}
+
+

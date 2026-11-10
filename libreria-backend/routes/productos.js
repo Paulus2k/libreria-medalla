@@ -42,14 +42,14 @@ router.get("/:id", async (req, res) => {
 
 // POST /productos
 router.post("/", async (req, res) => {
-  const { nombre, descripcion, precio, categoria, stock, stock_minimo, codigo, costo, imagen_url } = req.body;
+  const { nombre, descripcion, precio, categoria, stock, stock_minimo, codigo, costo, imagen_url, afecto_iva=true } = req.body;
 
   if (!nombre || !precio || !categoria)
     return res.status(400).json({ success: false, message: "Faltan campos requeridos: nombre, precio, categoria" });
 
   const { data, error } = await supabase
     .from("productos")
-    .insert([{ nombre, descripcion, precio, categoria, stock: stock || 0, stock_minimo: stock_minimo ?? 5, codigo: codigo || null, costo: Number(costo || 0), imagen_url: imagen_url || null }])
+    .insert([{ nombre, descripcion, precio, categoria, stock: stock || 0, stock_minimo: stock_minimo ?? 5, codigo: codigo || null, costo: Number(costo || 0), imagen_url: imagen_url || null, afecto_iva:!!afecto_iva }])
     .select()
     .single();
 
@@ -59,11 +59,11 @@ router.post("/", async (req, res) => {
 
 // PUT /productos/:id
 router.put("/:id", async (req, res) => {
-  const { nombre, descripcion, precio, categoria, stock, stock_minimo, codigo, costo, imagen_url } = req.body;
+  const { nombre, descripcion, precio, categoria, stock, stock_minimo, codigo, costo, imagen_url, afecto_iva=true } = req.body;
 
   const { data, error } = await supabase
     .from("productos")
-    .update({ nombre, descripcion, precio, categoria, stock, stock_minimo, codigo, costo: Number(costo || 0), imagen_url: imagen_url || null })
+    .update({ nombre, descripcion, precio, categoria, stock, stock_minimo, codigo, costo: Number(costo || 0), imagen_url: imagen_url || null, afecto_iva:!!afecto_iva })
     .eq("id", req.params.id)
     .select()
     .single();

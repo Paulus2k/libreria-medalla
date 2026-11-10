@@ -11,7 +11,7 @@ function fmtFecha(iso) {
   return new Date(iso).toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-const VACIO = { nombre: '', telefono: '', correo: '' }
+const VACIO = { nombre: '', telefono: '', correo: '',tipo_cliente:'contado',limite_credito:0,plazo_dias:30 }
 
 export default function Clientes() {
   const { addToast } = useToast()
@@ -74,7 +74,7 @@ export default function Clientes() {
   function abrirNuevo() { setEditando(null); setForm(VACIO); setModalOpen(true) }
   function abrirEditar(c) {
     setEditando(c)
-    setForm({ nombre: c.nombre || '', telefono: c.telefono || '', correo: c.correo || '' })
+    setForm({ nombre: c.nombre || '', telefono: c.telefono || '', correo: c.correo || '',tipo_cliente:c.tipo_cliente||'contado',limite_credito:c.limite_credito||0,plazo_dias:c.plazo_dias??30 })
     setModalOpen(true)
   }
 
@@ -186,7 +186,7 @@ export default function Clientes() {
                 {filtrados.map(c => (
                   <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => setDetalle(c)}>
                     <td>
-                      <div style={{ fontWeight: 700 }}>{c.nombre}</div>
+                      <div style={{ fontWeight: 700 }}>{c.nombre}</div><small>{c.tipo_cliente==='credito'?`Crédito · límite ${fmt(c.limite_credito)} · saldo Q ${fmt(c.saldo_credito)}`:'Contado'}</small>
                     </td>
                     <td>
                       <div style={{ fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -233,7 +233,7 @@ export default function Clientes() {
                   <input className="form-input" placeholder="Nombre completo" value={form.nombre}
                     onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} />
                 </div>
-                <div className="form-row form-row-2">
+                <label className="form-label">Tipo de cliente<select className="form-select" value={form.tipo_cliente} onChange={e=>setForm({...form,tipo_cliente:e.target.value})}><option value="contado">Contado</option><option value="credito">Línea de crédito</option></select></label>{form.tipo_cliente==='credito'&&<div className="form-row form-row-2"><label>Límite de crédito (Q)<input className="form-input" type="number" min="0" step="0.01" required value={form.limite_credito} onChange={e=>setForm({...form,limite_credito:e.target.value})}/></label><label>Plazo (días)<input className="form-input" type="number" min="0" max="365" required value={form.plazo_dias} onChange={e=>setForm({...form,plazo_dias:e.target.value})}/></label></div>}<div className="form-row form-row-2">
                   <div className="form-group">
                     <label className="form-label">Teléfono</label>
                     <input className="form-input" placeholder="5555-0000" value={form.telefono}

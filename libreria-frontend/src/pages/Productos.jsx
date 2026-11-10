@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext'
 
 const VACIO = {
   nombre: '', descripcion: '', precio: '', costo: '0', stock: '',
-  stock_minimo: '5', categoria: '', codigo: '', imagen_url: '',
+  afecto_iva:true, stock_minimo: '5', categoria: '', codigo: '', imagen_url: '',
 }
 
 function fmt(n) {
@@ -114,6 +114,7 @@ export default function Productos() {
       descripcion:  p.descripcion || '',
       precio:       p.precio || '',
       costo: p.costo ?? 0,
+      afecto_iva:p.afecto_iva??true,
       stock:        p.stock ?? '',
       stock_minimo: p.stock_minimo ?? 5,
       categoria:    p.categoria || '',
@@ -380,7 +381,7 @@ export default function Productos() {
                   </div>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Descripción</label>
+                  <label style={{display:'block',marginBottom:12}}><input type="checkbox" checked={form.afecto_iva} onChange={e=>setForm({...form,afecto_iva:e.target.checked})}/> Producto afecto a IVA en régimen general</label><label className="form-label">Descripción</label>
                   <input className="form-input" name="descripcion" value={form.descripcion} onChange={handleChange} placeholder="Descripción breve del producto" />
                 </div>
                 <div className="form-group">
